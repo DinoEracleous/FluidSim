@@ -34,6 +34,7 @@ Shader shader;
 
 int main()
 {
+    //Window setup
     GLFWwindow* window = setupWindow();
     if (window==NULL){
         glfwTerminate();
@@ -41,14 +42,14 @@ int main()
         return -1;
     }
 
-    //Get locations of all opengl functions and load them
+    //Setup GLAD: Get locations of all opengl functions and load them
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "ERROR Failed to initialize GLAD" << std::endl;
         return -1;
     } 
 
-    // configure opengl 
+    //opengl state configuration
     glEnable(GL_DEPTH_TEST);
     
 
@@ -100,6 +101,7 @@ int main()
 
     float lastTime {(float)glfwGetTime()};
 
+    //Render loop
     while(!glfwWindowShouldClose(window))
     {
         float timeNow {(float)glfwGetTime()};
@@ -199,7 +201,6 @@ unsigned int loadTexture(const std::string path){
         std::cout << "Failed to load texture" << std::endl;
     }
     stbi_image_free(data);
-
     textureCount++;
     return texture;
 }

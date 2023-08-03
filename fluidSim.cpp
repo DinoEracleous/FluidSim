@@ -8,6 +8,7 @@
 #include "shader.h"
 #include "stb_image.h"
 #include "camera.h"
+#include "Simulation.h"
 
 #include <iostream>
 #include <cmath>
@@ -20,7 +21,7 @@ GLFWwindow* setupWindow();
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window, float deltaTime);
 unsigned int loadTexture(const std::string path);
-void drawBalls(std::vector<glm::vec2> positions);
+void drawBalls(std::vector<Particle> particles);
 
 // settings
 unsigned int SCREEN_WIDTH = 1200;
@@ -97,9 +98,12 @@ int main()
     projection = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 200.0f);
     shader.setMat4("projection", projection);
     
-    camera.Position = glm::vec3(0.0f,0.0f,50.0f);
+    camera.Position = glm::vec3(12.0f,10.0f,100.0f);
 
     float lastTime {(float)glfwGetTime()};
+    //===========Simulation==============
+    Simulation sim;
+
 
     //Render loop
     while(!glfwWindowShouldClose(window))
@@ -116,7 +120,8 @@ int main()
         view = camera.GetViewMatrix();
         shader.setMat4("view",view);
 
-        drawBalls({{0.0f,0.0f},{1.0f,1.0f},{1.0f,0.0f},{0.0f,1.0f}});
+        sim.simulate();
+        drawBalls(sim.particles);
 
         glfwSwapBuffers(window);
         glfwPollEvents();    
@@ -130,9 +135,9 @@ int main()
     return 0;
 }
 
-void drawBalls(std::vector<glm::vec2> positions){
-    for(auto const &pos: positions){
-        glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(pos,0.0f));
+void drawBalls(std::vector<Particle> particles){
+    for(auto const &particle: particles){
+        glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(particle.position,0.0f));
         shader.setMat4("model",model);
         glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
     }

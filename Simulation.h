@@ -71,11 +71,11 @@ private:
                 p.velocity.x = 0.0f;
             }
             if(p.position.y < lowerWall+particleRadius){
-                p.position.y = 0.0f+particleRadius;
+                p.position.y = lowerWall+particleRadius;
                 p.velocity.y = 0.0f;
             }
             if(p.position.y > upperWall-particleRadius){
-                p.position.y = 0.0f-particleRadius;
+                p.position.y = upperWall-particleRadius;
                 p.velocity.y = 0.0f;
             }
         }

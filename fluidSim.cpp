@@ -120,7 +120,7 @@ int main()
         view = camera.GetViewMatrix();
         shader.setMat4("view",view);
 
-        sim.simulate();
+        sim.simulate(deltaTime);
         drawBalls(sim.particles);
 
         glfwSwapBuffers(window);

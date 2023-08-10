@@ -7,8 +7,9 @@
 
 #include <vector>
 #include <cmath>
+#include <iostream>
 
-const unsigned int NUM_PARTICLES = 1000;
+const unsigned int NUM_PARTICLES = 100;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(50,40);
 const int GRAVITY = -9.81;
 const int NUM_ITERS = 2; //number of iterations to repeat pushApart
@@ -26,8 +27,8 @@ public:
     Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0) {
         //set particles initial conditions
         for(int i{};i<particles.size();i++){
-            particles.at(i).position = glm::vec2((i%(gridDimensions.x/2))+0.5,(2*i/gridDimensions.x)+0.5);
-            particles.at(i).velocity = glm::vec2(1.0f,1.0f);
+            particles.at(i).position = glm::vec2((i%(gridDimensions.x/2))+spacing+particleRadius,(2*i/gridDimensions.x)+spacing+particleRadius);
+            particles.at(i).velocity = glm::vec2(20.0f,10.0f);
         }
     }
     void simulate(float dt){
@@ -37,27 +38,29 @@ public:
     }
 
 private:
-    int particleRadius = 0.5;
+    float particleRadius = 0.5f;
     float spacing = 1.1f; //size of one grid cell
-    std::vector<int> grid;
-    std::vector<int> particleIDs;
+    std::vector<int> grid; //collision grid column by column
+    std::vector<int> particleIDs; //indices of particles arranged by cell.
     
     
     //get the coordinate of the grid cell in which the particle is currently located
     glm::ivec2 getGridCoords(glm::vec2 pos){
-        return glm::ivec2(std::floor(pos.x/spacing),std::floor(pos.y/spacing));
+        glm::ivec2 coords {std::floor(pos.x/spacing),std::floor(pos.y/spacing)};
+        return coords;
     }
 
     //get the 1D index for a given 2D grid cell coordinate
     int gridCoordIndex(glm::ivec2 coord){
-        return static_cast<int>(gridDimensions.y * coord.x + coord.y);
+        int index {static_cast<int>(gridDimensions.y * coord.x + coord.y)};
+        return index;
     }
 
     //semi implicit euler integration to calculate particle positions under gravity.
     void integrate(float dt){
         for(auto &particle:particles){
             particle.velocity += glm::vec2(0.0f, dt*gravity);
-            particle.position += particle.velocity;
+            particle.position += dt*particle.velocity;
         }
     }
 
@@ -73,31 +76,50 @@ private:
         //insert running total particle counts
         int current {};
         for(int i{};i<grid.size()-1;i++){
-            current += grid[i];
+            current += grid.at(i);
             grid.at(i) = current;
         }
-        grid[grid.size()-1] = NUM_PARTICLES; //guard
+
+        grid.at(grid.size()-1) = NUM_PARTICLES; //guard
+        
         //fill particleIDs
         for(int i{};i<NUM_PARTICLES;i++){
             int gridIndex = gridCoordIndex(getGridCoords(particles.at(i).position));
-            particleIDs[--grid.at(gridIndex)] = i; 
+            particleIDs.at(--grid.at(gridIndex)) = i; 
         }
+
+        
 
         //PUSH PARTICLES APART
-        for (int i{};i<numIters;i++){
-
+        for (int iter{};iter<numIters;iter++){
+            for(int i{};i<grid.size()-1;i++){
+                int particlesInCell = grid[i+1]-grid[i];
+                for(int p1{grid[i]};p1<=grid[i]+particlesInCell-2;p1++){
+                    for(int p2{p1+1};p2<=grid[i]+particlesInCell-1;p2++){
+                        glm::vec2 &point1 {particles.at(particleIDs[p1]).position};
+                        glm::vec2 &point2 {particles.at(particleIDs[p2]).position};
+                        if(glm::dot(point2-point1,point2-point1)>4*particleRadius*particleRadius) continue;
+                        float distance = glm::length(point2-point1);
+                        
+                        if(distance != 0.0f){
+                            glm::vec2 normed = (point2-point1)*(1.0f/distance);
+                            glm::vec2 movep {(normed*(particleRadius-distance/2.0f))};
+                            point1 -= movep;
+                            point2 += movep;
+                        }
+                    }
+                }
+            }
         }
-
-
     }
-
+                
     //keep particles out of walls
     void handleObstacles(){
         float leftWall {spacing}, rightWall {spacing*gridDimensions.x-spacing}, lowerWall {spacing}, upperWall{spacing * gridDimensions.y-spacing};
         for(int i{};i<NUM_PARTICLES;i++){
             Particle &p = particles.at(i);
             if(p.position.x < leftWall+particleRadius){
-                p.position.x = 0.0f + particleRadius;
+                p.position.x = leftWall + particleRadius;
                 p.velocity.x = 0.0f;
             }
             if(p.position.x > rightWall-particleRadius){
@@ -114,8 +136,7 @@ private:
             }
         }
     }
-
-    
 };
 
 #endif
+    

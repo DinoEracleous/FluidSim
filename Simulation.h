@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 
 const unsigned int NUM_PARTICLES = 100;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(50,40);
@@ -28,7 +29,7 @@ public:
         //set particles initial conditions
         for(int i{};i<particles.size();i++){
             particles.at(i).position = glm::vec2((i%(gridDimensions.x/2))+spacing+particleRadius,(2*i/gridDimensions.x)+spacing+particleRadius);
-            particles.at(i).velocity = glm::vec2(20.0f,10.0f);
+            particles.at(i).velocity = glm::vec2(5.0f,15.0f);
         }
     }
     void simulate(float dt){
@@ -46,7 +47,7 @@ private:
     
     //get the coordinate of the grid cell in which the particle is currently located
     glm::ivec2 getGridCoords(glm::vec2 pos){
-        glm::ivec2 coords {std::floor(pos.x/spacing),std::floor(pos.y/spacing)};
+        glm::ivec2 coords {(int)std::floor(pos.x/spacing),(int)std::floor(pos.y/spacing)};
         return coords;
     }
 
@@ -88,24 +89,27 @@ private:
             particleIDs.at(--grid.at(gridIndex)) = i; 
         }
 
-        
-
         //PUSH PARTICLES APART
         for (int iter{};iter<numIters;iter++){
-            for(int i{};i<grid.size()-1;i++){
-                int particlesInCell = grid[i+1]-grid[i];
-                for(int p1{grid[i]};p1<=grid[i]+particlesInCell-2;p1++){
-                    for(int p2{p1+1};p2<=grid[i]+particlesInCell-1;p2++){
-                        glm::vec2 &point1 {particles.at(particleIDs[p1]).position};
-                        glm::vec2 &point2 {particles.at(particleIDs[p2]).position};
-                        if(glm::dot(point2-point1,point2-point1)>4*particleRadius*particleRadius) continue;
-                        float distance = glm::length(point2-point1);
-                        
-                        if(distance != 0.0f){
-                            glm::vec2 normed = (point2-point1)*(1.0f/distance);
-                            glm::vec2 movep {(normed*(particleRadius-distance/2.0f))};
-                            point1 -= movep;
-                            point2 += movep;
+            for(int i{};i<NUM_PARTICLES;i++){
+                Particle &p {particles.at(i)};
+                glm::ivec2 gridCoords = getGridCoords(p.position);
+                int xStart {std::max(gridCoords.x-1,1)}, xEnd {std::min(gridCoords.x+1,gridDimensions.x-1)};
+                int yStart {std::max(gridCoords.y-1,1)}, yEnd {std::min(gridCoords.y+1,gridDimensions.y-1)};
+                for(int xi{xStart};xi<=xEnd;xi++){
+                    for(int yi{yStart};yi<=yEnd;yi++){
+                        int index = gridCoordIndex({xi,yi});
+                        for(int pi{grid[index]};pi<grid[index+1];pi++){
+                            glm::vec2 &p2 {particles.at(particleIDs[pi]).position};
+                            if(pi==i || glm::dot(p2-p.position,p2-p.position)>=4.0f*particleRadius*particleRadius) continue;
+                            float distance = glm::length(p2-p.position);
+                            
+                            if(distance != 0.0f){
+                                glm::vec2 normed = (p2-p.position)*(1.0f/distance);
+                                glm::vec2 movep {(normed*(particleRadius-(distance/2.0f)))};
+                                p.position -= movep;
+                                p2 += movep;
+                            }
                         }
                     }
                 }

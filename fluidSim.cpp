@@ -164,6 +164,8 @@ int main()
         lineShader.setMat4("view",view);
         glBindVertexArray(lineVAO);
         drawLine({1.1f,1.1f},{50.0f*1.1f-1.1f,1.1f});
+        drawLine({1.1f,1.1f},{1.1f,50.0f*1.1f-1.1f});
+
         
         glfwSwapBuffers(window);
         glfwPollEvents();    

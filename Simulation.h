@@ -12,12 +12,22 @@
 
 const unsigned int NUM_PARTICLES = 100;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(50,40);
+const float SPACING = 1.1f;
 const int GRAVITY = -9.81;
 const int NUM_ITERS = 2; //number of iterations to repeat pushApart
+
 
 struct Particle{
     glm::vec2 position;
     glm::vec2 velocity;
+};
+
+enum cellType {WATER, AIR, SOLID};
+
+struct fluidCell{
+    glm::vec2 prevVelocity;
+    glm::vec2 velocity;
+    cellType type;
 };
 
 class Simulation {
@@ -25,24 +35,38 @@ public:
     glm::ivec2 gridDimensions = GRID_DIMENSIONS;
     float gravity = GRAVITY;
     std::vector<Particle> particles;
-    Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0) {
+    Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0), 
+                   fluidGrid(gridDimensions.x*gridDimensions.y)
+    {
         //set particles initial conditions
         for(int i{};i<particles.size();i++){
             particles.at(i).position = glm::vec2((i%(gridDimensions.x/2))+spacing+particleRadius,(2*i/gridDimensions.x)+spacing+particleRadius);
             particles.at(i).velocity = glm::vec2(5.0f,15.0f);
+        }
+        //set wall cells to be solid else they are set to air.
+        for(int i{};i<gridDimensions.x;i++){
+            for (int j{};j<gridDimensions.y;j++){
+                int index = gridCoordIndex({i,j});
+                if(i==0 || j==0 || i == gridDimensions.x-1 || j==gridDimensions.y-1){
+                    fluidGrid.at(index).type = SOLID;
+                }
+                fluidGrid.at(index).type = AIR;
+            }
         }
     }
     void simulate(float dt){
         integrate(dt);
         pushApart(NUM_ITERS);
         handleObstacles();
+        transferVelocties(true);
     }
 
 private:
     float particleRadius = 0.5f;
-    float spacing = 1.1f; //size of one grid cell
-    std::vector<int> grid; //collision grid column by column
+    float spacing = SPACING; //size of one grid cell
+    std::vector<int> grid; //collision grid column by column for spatial hash.
     std::vector<int> particleIDs; //indices of particles arranged by cell.
+    std::vector<fluidCell> fluidGrid; // each cell is air, water or solid and has velocities moving into it.
     
     
     //get the coordinate of the grid cell in which the particle is currently located
@@ -137,6 +161,20 @@ private:
             if(p.position.y > upperWall-particleRadius){
                 p.position.y = upperWall-particleRadius;
                 p.velocity.y = 0.0f;
+            }
+        }
+    }
+
+    void transferVelocties(bool toGrid){
+        if(toGrid){
+            for(int i{};i<fluidGrid.size();i++){
+                fluidGrid.at(i).prevVelocity = fluidGrid.at(i).velocity; //make a copy of velocities for later
+                fluidGrid.at(i).velocity = {0.0f,0.0f};
+                fluidGrid.at(i).type = (fluidGrid.at(i).type!= SOLID?AIR:SOLID);
+            }
+            for(int i{};i<NUM_PARTICLES;i++){
+                int index = gridCoordIndex(getGridCoords(particles.at(i).position));           
+                fluidGrid.at(index).type = WATER;
             }
         }
     }

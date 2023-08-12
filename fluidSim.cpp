@@ -56,7 +56,6 @@ int main()
     //opengl state configuration
     glEnable(GL_DEPTH_TEST);
     
-
     //===========Vertex data=============
 
     //quad for drawing circles
@@ -79,7 +78,6 @@ int main()
         1.0,1.0,0.0
     };
 
-    
     //============Buffers================
     //QUAD
     unsigned int quadVBO, quadVAO, quadEBO;
@@ -123,21 +121,21 @@ int main()
     glm::mat4 projection = glm::mat4(1.0f);
     
     projection = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 200.0f);
-    //projection = glm::ortho(-(float)SCREEN_WIDTH/20, (float)SCREEN_WIDTH/20, -(float)SCREEN_HEIGHT/20, (float)SCREEN_HEIGHT/20, 0.1f, 200.0f);
     ballShader.setMat4("projection", projection);
 
     //LINES
     lineShader.use();
     lineShader.setMat4("projection", projection);
 
-
-    //CAMERA
-    camera.Position = glm::vec3(0.0f,0.0f,100.0f);
-
-    float lastTime {(float)glfwGetTime()};
     //===========Simulation==============
     Simulation sim;
+    float gridSpacing = SPACING;
+    int gridx = GRID_DIMENSIONS.x;
+    int gridy = GRID_DIMENSIONS.y;
 
+    //CAMERA
+    camera.Position = glm::vec3(gridx/2,gridy/2,100.0f);
+    float lastTime {(float)glfwGetTime()};
 
     //Render loop
     while(!glfwWindowShouldClose(window))
@@ -160,12 +158,14 @@ int main()
         glBindVertexArray(quadVAO);
         drawBalls(sim.particles);
 
+        //draw lines for boundaries 
         lineShader.use();
         lineShader.setMat4("view",view);
         glBindVertexArray(lineVAO);
-        drawLine({1.1f,1.1f},{50.0f*1.1f-1.1f,1.1f});
-        drawLine({1.1f,1.1f},{1.1f,50.0f*1.1f-1.1f});
-
+        drawLine({gridSpacing,gridSpacing},{gridx*gridSpacing-gridSpacing,gridSpacing}); //floor
+        drawLine({gridSpacing,gridSpacing},{gridSpacing,gridy*gridSpacing-gridSpacing}); //left wall
+        drawLine({gridSpacing,gridy*gridSpacing-gridSpacing},{gridx*gridSpacing-gridSpacing,gridy*gridSpacing-gridSpacing}); //ceiling
+        drawLine({gridx*gridSpacing-gridSpacing,gridSpacing},{gridx*gridSpacing-gridSpacing,gridy*gridSpacing-gridSpacing}); //right wall
         
         glfwSwapBuffers(window);
         glfwPollEvents();    
@@ -200,7 +200,7 @@ void drawBalls(std::vector<glm::vec2> positions){
     }
 }
 
-void drawLine(glm::vec2 p1, glm::vec2 p2){
+void drawLine(glm::vec2 p1, glm::vec2 p2){ //point1 to point2
     glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(p1,0.01f));
     model = glm::scale(model,glm::vec3(p2-p1,0.0f));
     lineShader.setMat4 ("model", model);

@@ -27,6 +27,7 @@ enum cellType {WATER, AIR, SOLID};
 struct fluidCell{
     glm::vec2 prevVelocity;
     glm::vec2 velocity;
+    glm::vec2 weights;
     cellType type;
 };
 
@@ -89,6 +90,7 @@ private:
         }
     }
 
+    //push particles out of each other
     void pushApart(int numIters){
         //FILL SPATIAL HASH GRID
         //clear grid
@@ -141,7 +143,7 @@ private:
         }
     }
                 
-    //keep particles out of walls
+    //push particles out of walls
     void handleObstacles(){
         float leftWall {spacing}, rightWall {spacing*gridDimensions.x-spacing}, lowerWall {spacing}, upperWall{spacing * gridDimensions.y-spacing};
         for(int i{};i<NUM_PARTICLES;i++){
@@ -165,16 +167,50 @@ private:
         }
     }
 
+    //transfer particle velocities to and from the fluidGrid
     void transferVelocties(bool toGrid){
         if(toGrid){
+            //clear cell velocities and weights
             for(int i{};i<fluidGrid.size();i++){
                 fluidGrid.at(i).prevVelocity = fluidGrid.at(i).velocity; //make a copy of velocities for later
                 fluidGrid.at(i).velocity = {0.0f,0.0f};
+                fluidGrid.at(i).weights = {0.0f,0.0f};
                 fluidGrid.at(i).type = (fluidGrid.at(i).type!= SOLID?AIR:SOLID);
             }
+            //set which cells are considered water. (they are water if they contain any particles)
             for(int i{};i<NUM_PARTICLES;i++){
                 int index = gridCoordIndex(getGridCoords(particles.at(i).position));           
                 fluidGrid.at(index).type = WATER;
+            }
+        }
+
+        for(int i{};i<NUM_PARTICLES;i++){
+            //calculate weights and transfer velocities one component at a time
+            for(int component{};component<2;component++){ //horizontal component then vertical component
+                
+                //calculate weights for horizontal grid velocities
+                glm::vec2 pos {particles.at(i).position.x,particles.at(i).position.y}; 
+                pos -= glm::vec2({component*spacing/2,(1-component)*spacing/2}); //shift particle for staggered grid
+                pos.x = glm::clamp(pos.x,spacing,spacing*(gridDimensions.x-1)); //keep pos in bounds
+                pos.y = glm::clamp(pos.y,spacing,spacing*(gridDimensions.y-1));
+                glm::ivec2 q0{getGridCoords(pos)},q1{q0.x+1,q0.y}, q2{q1.x,q1.y+1}, q3{q0.x,q0.y+1};//coords of 4 surrounding cells
+                int i0{gridCoordIndex(q0)},i1{gridCoordIndex(q1)},i2{gridCoordIndex(q2)},i3{gridCoordIndex(q3)}; //fluidGrid indices for cells
+                float dx{pos.x-q0.x*spacing}, dy{pos.y-q0.y*spacing}; //here the repeated parts of the bilinear interp values are calculated
+                float sx {dx/spacing}, sy{dy/spacing};
+                float tx {1-sx}, ty {1-sy};
+                float w0{tx*ty}, w1{sx*ty}, w2{sx*sy} ,w3{tx*sy}; //weights
+
+                
+                if(toGrid){ //sum weighted velocities and weights for each cell.
+                    fluidGrid.at(i0).velocity[component] += w0*particles.at(i).velocity[component];
+                    fluidGrid.at(i1).velocity[component] += w1*particles.at(i).velocity[component];
+                    fluidGrid.at(i2).velocity[component] += w2*particles.at(i).velocity[component];
+                    fluidGrid.at(i3).velocity[component] += w3*particles.at(i).velocity[component];
+                    fluidGrid.at(i0).weights[component] += w0;
+                    fluidGrid.at(i1).weights[component] += w1;
+                    fluidGrid.at(i2).weights[component] += w2;
+                    fluidGrid.at(i3).weights[component] += w3;
+                }
             }
         }
     }

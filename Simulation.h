@@ -15,6 +15,7 @@ const glm::vec2 GRID_DIMENSIONS = glm::vec2(50,40);
 const float SPACING = 1.1f;
 const int GRAVITY = -9.81;
 const int NUM_ITERS = 2; //number of iterations to repeat pushApart
+const float FLIP_PIC_RATIO = 0.9f;
 
 
 struct Particle{
@@ -25,10 +26,10 @@ struct Particle{
 enum cellType {WATER, AIR, SOLID};
 
 struct fluidCell{
-    glm::vec2 prevVelocity;
-    glm::vec2 velocity;
-    glm::vec2 weights;
-    cellType type;
+    glm::vec2 prevVelocity {};
+    glm::vec2 velocity {};
+    glm::vec2 weights {};
+    cellType type {AIR};
 };
 
 class Simulation {
@@ -50,16 +51,21 @@ public:
                 int index = gridCoordIndex({i,j});
                 if(i==0 || j==0 || i == gridDimensions.x-1 || j==gridDimensions.y-1){
                     fluidGrid.at(index).type = SOLID;
+                } else {
+                    fluidGrid.at(index).type = AIR;
+
                 }
-                fluidGrid.at(index).type = AIR;
             }
         }
     }
     void simulate(float dt){
         integrate(dt);
+        //handleObstacles();
         pushApart(NUM_ITERS);
         handleObstacles();
-        transferVelocties(true);
+        transferVelocities(true,FLIP_PIC_RATIO);
+        //makeIncompressible();
+        transferVelocities(false,FLIP_PIC_RATIO);
     }
 
 private:
@@ -69,10 +75,10 @@ private:
     std::vector<int> particleIDs; //indices of particles arranged by cell.
     std::vector<fluidCell> fluidGrid; // each cell is air, water or solid and has velocities moving into it.
     
-    
     //get the coordinate of the grid cell in which the particle is currently located
     glm::ivec2 getGridCoords(glm::vec2 pos){
         glm::ivec2 coords {(int)std::floor(pos.x/spacing),(int)std::floor(pos.y/spacing)};
+        coords = glm::clamp(coords,{0,0},{gridDimensions.x-1,gridDimensions.y-1});
         return coords;
     }
 
@@ -168,7 +174,7 @@ private:
     }
 
     //transfer particle velocities to and from the fluidGrid
-    void transferVelocties(bool toGrid){
+    void transferVelocities(bool toGrid, float flipPicRatio){
         if(toGrid){
             //clear cell velocities and weights
             for(int i{};i<fluidGrid.size();i++){
@@ -177,30 +183,31 @@ private:
                 fluidGrid.at(i).weights = {0.0f,0.0f};
                 fluidGrid.at(i).type = (fluidGrid.at(i).type!= SOLID?AIR:SOLID);
             }
-            //set which cells are considered water. (they are water if they contain any particles)
+            //set cells to water if they contain any particles.
             for(int i{};i<NUM_PARTICLES;i++){
                 int index = gridCoordIndex(getGridCoords(particles.at(i).position));           
                 fluidGrid.at(index).type = WATER;
             }
         }
 
-        for(int i{};i<NUM_PARTICLES;i++){
-            //calculate weights and transfer velocities one component at a time
-            for(int component{};component<2;component++){ //horizontal component then vertical component
-                
+        for(int component{};component<2;component++){ //horizontal component then vertical component
+            for(int i{};i<NUM_PARTICLES;i++){ //calculate weights and transfer velocities
                 //calculate weights for horizontal grid velocities
                 glm::vec2 pos {particles.at(i).position.x,particles.at(i).position.y}; 
-                pos -= glm::vec2({component*spacing/2,(1-component)*spacing/2}); //shift particle for staggered grid
+                pos -= glm::vec2({component*spacing/2.0f,(1-component)*spacing/2.0f}); //shift particle for staggered grid
                 pos.x = glm::clamp(pos.x,spacing,spacing*(gridDimensions.x-1)); //keep pos in bounds
                 pos.y = glm::clamp(pos.y,spacing,spacing*(gridDimensions.y-1));
-                glm::ivec2 q0{getGridCoords(pos)},q1{q0.x+1,q0.y}, q2{q1.x,q1.y+1}, q3{q0.x,q0.y+1};//coords of 4 surrounding cells
+                glm::ivec2 q0{getGridCoords(pos)};//coords of 4 surrounding cells
+                glm::ivec2 q1{std::min(q0.x+1,gridDimensions.x-2),q0.y};
+                glm::ivec2 q2{q1.x,std::min(q1.y+1,gridDimensions.y-2)};
+                glm::ivec2 q3{q0.x,std::min(q0.y+1,gridDimensions.y-2)};
                 int i0{gridCoordIndex(q0)},i1{gridCoordIndex(q1)},i2{gridCoordIndex(q2)},i3{gridCoordIndex(q3)}; //fluidGrid indices for cells
                 float dx{pos.x-q0.x*spacing}, dy{pos.y-q0.y*spacing}; //here the repeated parts of the bilinear interp values are calculated
                 float sx {dx/spacing}, sy{dy/spacing};
                 float tx {1-sx}, ty {1-sy};
                 float w0{tx*ty}, w1{sx*ty}, w2{sx*sy} ,w3{tx*sy}; //weights
 
-                
+
                 if(toGrid){ //sum weighted velocities and weights for each cell.
                     fluidGrid.at(i0).velocity[component] += w0*particles.at(i).velocity[component];
                     fluidGrid.at(i1).velocity[component] += w1*particles.at(i).velocity[component];
@@ -210,7 +217,38 @@ private:
                     fluidGrid.at(i1).weights[component] += w1;
                     fluidGrid.at(i2).weights[component] += w2;
                     fluidGrid.at(i3).weights[component] += w3;
+                } else { //handle transfer from grid to particles
+                    //ensure we do not consider velocities between two air cells
+                    int adjacentOffset = (component)?1:gridDimensions.y;
+                    bool isValid0 {fluidGrid.at(i0).type != AIR || fluidGrid.at(i0-adjacentOffset).type != AIR};
+                    bool isValid1 {fluidGrid.at(i1).type != AIR || fluidGrid.at(i1-adjacentOffset).type != AIR};
+                    bool isValid2 {fluidGrid.at(i2).type != AIR || fluidGrid.at(i2-adjacentOffset).type != AIR};
+                    bool isValid3 {fluidGrid.at(i3).type != AIR || fluidGrid.at(i3-adjacentOffset).type != AIR};
+                    
+                    float w = isValid0*w0 + isValid1*w1 + isValid2*w2 + isValid3*w3;
+                    if(w != 0.0f){   
+                        float pic = (isValid0*w0*fluidGrid.at(i0).velocity[component] +
+                                    isValid0*w1*fluidGrid.at(i1).velocity[component] +
+                                    isValid0*w2*fluidGrid.at(i2).velocity[component] +
+                                    isValid0*w3*fluidGrid.at(i3).velocity[component])/w;
+                        float flipDelta = (isValid0*w0*(fluidGrid.at(i0).velocity[component]-fluidGrid.at(i0).prevVelocity[component]) +
+                                    isValid0*w1*(fluidGrid.at(i1).velocity[component]-fluidGrid.at(i1).prevVelocity[component]) +
+                                    isValid0*w2*(fluidGrid.at(i2).velocity[component]-fluidGrid.at(i2).prevVelocity[component]) +
+                                    isValid0*w3*(fluidGrid.at(i3).velocity[component]-fluidGrid.at(i3).prevVelocity[component]))/w;
+                        float flip = flipDelta + particles.at(i).velocity[component];
+                        particles.at(i).velocity[component] = flipPicRatio*flip + (1.0f-flipPicRatio)*pic;
+                    }
+
                 }
+
+            }
+        }
+        if(toGrid){
+            for(int i{};i<fluidGrid.size();i++){
+                if(fluidGrid.at(i).weights.x != 0.0f)
+                    fluidGrid.at(i).velocity.x /= fluidGrid.at(i).weights.x;
+                if(fluidGrid.at(i).weights.y != 0.0f)
+                    fluidGrid.at(i).velocity.y /= fluidGrid.at(i).weights.y; 
             }
         }
     }

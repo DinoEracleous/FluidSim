@@ -10,7 +10,7 @@
 #include <iostream>
 #include <algorithm>
 
-const unsigned int NUM_PARTICLES = 2000;
+const unsigned int NUM_PARTICLES = 3000;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(100,80);
 const float SPACING = 1.1f;
 const int GRAVITY = -9.81f;
@@ -44,7 +44,7 @@ public:
         //set particles initial conditions
         for(int i{};i<particles.size();i++){
             particles.at(i).position = glm::vec2((i%(gridDimensions.x/2))+spacing+particleRadius,(2*i/gridDimensions.x)+spacing+particleRadius);
-            particles.at(i).velocity = glm::vec2(0.0f,0.0f);
+            particles.at(i).velocity = glm::vec2(10.0f,10.0f);
         }
         //set wall cells to be solid else they are set to air.
         for(int i{};i<gridDimensions.x;i++){
@@ -60,7 +60,8 @@ public:
         }
     }
     void simulate(float dt){
-        integrate(2*dt); 
+        //integrate(2*dt); 
+        integrate(2*dt);
         pushApart();
         handleObstacles();
         transferVelocities(true,FLIP_PIC_RATIO);
@@ -179,7 +180,7 @@ private:
         if(toGrid){
             //clear cell velocities and weights
             for(int i{};i<fluidGrid.size();i++){
-                fluidGrid.at(i).prevVelocity = fluidGrid.at(i).velocity; //make a copy of velocities for later
+                //fluidGrid.at(i).prevVelocity = fluidGrid.at(i).velocity; //make a copy of velocities for later
                 fluidGrid.at(i).velocity = {0.0f,0.0f};
                 fluidGrid.at(i).weights = {0.0f,0.0f};
                 fluidGrid.at(i).type = (fluidGrid.at(i).type!= SOLID?AIR:SOLID);
@@ -227,15 +228,15 @@ private:
                     bool isValid3 {fluidGrid.at(i3).type != AIR || fluidGrid.at(i3-adjacentOffset).type != AIR};
                     
                     float w = isValid0*w0 + isValid1*w1 + isValid2*w2 + isValid3*w3;
-                    if(w != 0.0f){   
+                    if(w > 0.0f){   
                         float pic = (isValid0*w0*fluidGrid.at(i0).velocity[component] +
-                                    isValid0*w1*fluidGrid.at(i1).velocity[component] +
-                                    isValid0*w2*fluidGrid.at(i2).velocity[component] +
-                                    isValid0*w3*fluidGrid.at(i3).velocity[component])/w;
+                                    isValid1*w1*fluidGrid.at(i1).velocity[component] +
+                                    isValid2*w2*fluidGrid.at(i2).velocity[component] +
+                                    isValid3*w3*fluidGrid.at(i3).velocity[component])/w;
                         float flipDelta = (isValid0*w0*(fluidGrid.at(i0).velocity[component]-fluidGrid.at(i0).prevVelocity[component]) +
-                                    isValid0*w1*(fluidGrid.at(i1).velocity[component]-fluidGrid.at(i1).prevVelocity[component]) +
-                                    isValid0*w2*(fluidGrid.at(i2).velocity[component]-fluidGrid.at(i2).prevVelocity[component]) +
-                                    isValid0*w3*(fluidGrid.at(i3).velocity[component]-fluidGrid.at(i3).prevVelocity[component]))/w;
+                                    isValid1*w1*(fluidGrid.at(i1).velocity[component]-fluidGrid.at(i1).prevVelocity[component]) +
+                                    isValid2*w2*(fluidGrid.at(i2).velocity[component]-fluidGrid.at(i2).prevVelocity[component]) +
+                                    isValid3*w3*(fluidGrid.at(i3).velocity[component]-fluidGrid.at(i3).prevVelocity[component]))/w;
                         float flip = flipDelta + particles.at(i).velocity[component];
                         particles.at(i).velocity[component] = flipPicRatio*flip + (1.0f-flipPicRatio)*pic;
                     }
@@ -246,9 +247,9 @@ private:
         }
         if(toGrid){
             for(int i{};i<fluidGrid.size();i++){
-                if(fluidGrid.at(i).weights.x != 0.0f)
+                if(fluidGrid.at(i).weights.x > 0.0f)
                     fluidGrid.at(i).velocity.x /= fluidGrid.at(i).weights.x;
-                if(fluidGrid.at(i).weights.y != 0.0f)
+                if(fluidGrid.at(i).weights.y > 0.0f)
                     fluidGrid.at(i).velocity.y /= fluidGrid.at(i).weights.y; 
             }
         }
@@ -271,7 +272,9 @@ private:
                     int sBottom {fluidGrid.at(gridCoordIndex({i,j-1})).type!=SOLID?1:0};
                     int sTop {fluidGrid.at(gridCoordIndex({i,j+1})).type!=SOLID?1:0};
                     div *= OVERRELAX;
-                    div /= sLeft + sRight + sBottom + sTop;
+                    float s = sLeft + sRight + sBottom + sTop;
+                    if (s==0) continue;
+                    div /= s;
                     fluidGrid.at(gridCoordIndex({i,j})).velocity.x += div*sLeft;
                     fluidGrid.at(gridCoordIndex({i+1,j})).velocity.x -= div*sRight;
                     fluidGrid.at(gridCoordIndex({i,j})).velocity.y += div*sBottom;

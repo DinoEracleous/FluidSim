@@ -10,13 +10,14 @@
 #include <iostream>
 #include <algorithm>
 
-const unsigned int NUM_PARTICLES = 3000;
-const glm::vec2 GRID_DIMENSIONS = glm::vec2(100,80);
+const unsigned int NUM_PARTICLES = 5000;
+const glm::vec2 GRID_DIMENSIONS = glm::vec2(200,80);
 const float SPACING = 1.1f;
 const int GRAVITY = -9.81f;
-const int NUM_ITERS = 2; //number of iterations to repeat pushApart
+const int NUM_ITERS = 3; //number of iterations to repeat pushApart
 const float FLIP_PIC_RATIO = 0.9f;
 const float OVERRELAX = 1.9f;
+const float COMPRESSION_FACTOR = 2.0f;
 
 
 struct Particle{
@@ -27,9 +28,10 @@ struct Particle{
 enum cellType {WATER, AIR, SOLID};
 
 struct fluidCell{
-    glm::vec2 prevVelocity {};
-    glm::vec2 velocity {};
-    glm::vec2 weights {};
+    glm::vec2 prevVelocity;
+    glm::vec2 velocity;
+    glm::vec2 weights;
+    float density;
     cellType type {AIR};
 };
 
@@ -38,6 +40,7 @@ public:
     glm::ivec2 gridDimensions = GRID_DIMENSIONS;
     float gravity = GRAVITY;
     std::vector<Particle> particles;
+
     Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0), 
                    fluidGrid(gridDimensions.x*gridDimensions.y)
     {
@@ -58,6 +61,7 @@ public:
                 }
             }
         }
+
     }
     void simulate(float dt){
         //integrate(2*dt); 
@@ -65,6 +69,7 @@ public:
         pushApart();
         handleObstacles();
         transferVelocities(true,FLIP_PIC_RATIO);
+        computeDensities();
         makeIncompressible();
         transferVelocities(false,FLIP_PIC_RATIO);
     }
@@ -76,6 +81,7 @@ private:
     std::vector<int> particleIDs; //indices of particles arranged by cell.
     std::vector<fluidCell> fluidGrid; // each cell is air, water or solid and has velocities moving into it.
     int numIters = NUM_ITERS;
+    float restDensity;
     
     //get the coordinate of the grid cell in which the particle is currently located
     glm::ivec2 getGridCoords(glm::vec2 pos){
@@ -180,7 +186,6 @@ private:
         if(toGrid){
             //clear cell velocities and weights
             for(int i{};i<fluidGrid.size();i++){
-                //fluidGrid.at(i).prevVelocity = fluidGrid.at(i).velocity; //make a copy of velocities for later
                 fluidGrid.at(i).velocity = {0.0f,0.0f};
                 fluidGrid.at(i).weights = {0.0f,0.0f};
                 fluidGrid.at(i).type = (fluidGrid.at(i).type!= SOLID?AIR:SOLID);
@@ -228,7 +233,7 @@ private:
                     bool isValid3 {fluidGrid.at(i3).type != AIR || fluidGrid.at(i3-adjacentOffset).type != AIR};
                     
                     float w = isValid0*w0 + isValid1*w1 + isValid2*w2 + isValid3*w3;
-                    if(w > 0.0f){   
+                    if(w > 0.0f){ //average out grid velocities
                         float pic = (isValid0*w0*fluidGrid.at(i0).velocity[component] +
                                     isValid1*w1*fluidGrid.at(i1).velocity[component] +
                                     isValid2*w2*fluidGrid.at(i2).velocity[component] +
@@ -238,7 +243,7 @@ private:
                                     isValid2*w2*(fluidGrid.at(i2).velocity[component]-fluidGrid.at(i2).prevVelocity[component]) +
                                     isValid3*w3*(fluidGrid.at(i3).velocity[component]-fluidGrid.at(i3).prevVelocity[component]))/w;
                         float flip = flipDelta + particles.at(i).velocity[component];
-                        particles.at(i).velocity[component] = flipPicRatio*flip + (1.0f-flipPicRatio)*pic;
+                        particles.at(i).velocity[component] = flipPicRatio*flip + (1.0f-flipPicRatio)*pic; //transfer to particles
                     }
 
                 }
@@ -272,6 +277,10 @@ private:
                     int sBottom {fluidGrid.at(gridCoordIndex({i,j-1})).type!=SOLID?1:0};
                     int sTop {fluidGrid.at(gridCoordIndex({i,j+1})).type!=SOLID?1:0};
                     div *= OVERRELAX;
+                    //adjust for drift
+                    float compression = fluidGrid.at(gridCoordIndex({i,j})).density - restDensity;
+                    if (compression>0.0f) 
+                        div -= COMPRESSION_FACTOR*compression; 
                     float s = sLeft + sRight + sBottom + sTop;
                     if (s==0) continue;
                     div /= s;
@@ -282,6 +291,52 @@ private:
                 }
             }
         }
+
+    }
+
+    void computeDensities(){
+        //clear densities;
+        for(int i{};i<fluidGrid.size();i++){
+            fluidGrid.at(i).density = 0.0f;
+        }
+
+        //calculate weights
+        for(int i{};i<NUM_PARTICLES;i++){
+            glm::vec2 pos {particles.at(i).position.x,particles.at(i).position.y}; 
+            pos -= glm::vec2({spacing/2.0f,spacing/2.0f}); //shift both coordinates so we calulate density at the center of each cell
+            pos.x = glm::clamp(pos.x,spacing,spacing*(gridDimensions.x-1)); //keep pos in bounds
+            pos.y = glm::clamp(pos.y,spacing,spacing*(gridDimensions.y-1));
+            //coords of 4 surrounding cells
+            glm::ivec2 q0{getGridCoords(pos)};
+            glm::ivec2 q1{std::min(q0.x+1,gridDimensions.x-2),q0.y};
+            glm::ivec2 q2{q1.x,std::min(q1.y+1,gridDimensions.y-2)};
+            glm::ivec2 q3{q0.x,std::min(q0.y+1,gridDimensions.y-2)};
+            int i0{gridCoordIndex(q0)},i1{gridCoordIndex(q1)},i2{gridCoordIndex(q2)},i3{gridCoordIndex(q3)}; //fluidGrid indices for cells
+            float dx{pos.x-q0.x*spacing}, dy{pos.y-q0.y*spacing}; //here the repeated parts of the bilinear interp values are calculated
+            float sx {dx/spacing}, sy{dy/spacing};
+            float tx {1-sx}, ty {1-sy};
+            float w0{tx*ty}, w1{sx*ty}, w2{sx*sy} ,w3{tx*sy}; //weights
+
+            //sum weights to get densities
+            fluidGrid.at(i0).density += w0;
+            fluidGrid.at(i1).density += w1;
+            fluidGrid.at(i2).density += w2;
+            fluidGrid.at(i3).density += w3;
+        }
+        
+        //On first execution we set the initial density
+        if (restDensity==0.0f){
+            float densitySum{};
+            int numWater {};
+            for(int i{};i<fluidGrid.size();i++){
+                if(fluidGrid.at(i).type == WATER){
+                    densitySum += fluidGrid.at(i).density;
+                    numWater++; //count number of water cells
+                }
+            }
+            if(numWater!=0.0f) restDensity = densitySum/numWater;
+        }
+
 
     }
 

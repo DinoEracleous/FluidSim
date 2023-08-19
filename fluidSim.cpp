@@ -120,7 +120,7 @@ int main()
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
     
-    projection = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 201.0f);
+    projection = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 501.0f);
     ballShader.setMat4("projection", projection);
 
     //LINES
@@ -134,7 +134,7 @@ int main()
     int gridy = GRID_DIMENSIONS.y;
 
     //CAMERA
-    camera.Position = glm::vec3(gridx/2,gridy/2,200.0f);
+    camera.Position = glm::vec3(gridx/2,gridy/2,250.0f);
     float lastTime {(float)glfwGetTime()};
 
     //Render loop

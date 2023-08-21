@@ -10,8 +10,9 @@
 enum Camera_Movement {FORWARD, BACK, LEFT, RIGHT, UP, DOWN};
 
 // Defaults
-const float SPEED       =  25.0f;
-const float SENS        =  0.1f;
+const float SPEED =  25.0f;
+const float SENS =  0.1f;
+const float FOV = 45.0f;
 
 class Camera
 {
@@ -21,6 +22,10 @@ public:
     glm::vec3 Front = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 Up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 Right = glm::vec3(1.0f,0.0f,0.0f);
+
+    float fov = FOV;
+    float near = 0.1f;
+    float far = 501.0f;
 
     float MovementSpeed = SPEED;
     float MouseSensitivity = SENS;

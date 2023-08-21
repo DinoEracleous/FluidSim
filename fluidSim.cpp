@@ -20,9 +20,10 @@ using std::sin;
 GLFWwindow* setupWindow();
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window, float deltaTime);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 unsigned int loadTexture(const std::string path);
 void drawBalls(std::vector<Particle> particles);
-void drawBalls(std::vector<glm::vec2> positions);
+void drawBalls(std::vector<glm::vec2> positions,float radius);
 void drawLine(glm::vec2 p1 , glm::vec2 p2);
 
 // settings
@@ -35,6 +36,8 @@ unsigned int textureCount {0};
 Camera camera;
 Shader ballShader;
 Shader lineShader;
+
+Simulation sim;
 
 int main()
 {
@@ -120,7 +123,7 @@ int main()
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
     
-    projection = glm::perspective(glm::radians(45.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 501.0f);
+    projection = glm::perspective(glm::radians(camera.fov), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, camera.near, camera.far);
     ballShader.setMat4("projection", projection);
 
     //LINES
@@ -128,13 +131,12 @@ int main()
     lineShader.setMat4("projection", projection);
 
     //===========Simulation==============
-    Simulation sim;
     float gridSpacing = SPACING;
     int gridx = GRID_DIMENSIONS.x;
     int gridy = GRID_DIMENSIONS.y;
 
     //CAMERA
-    camera.Position = glm::vec3(gridx/2,gridy/2,250.0f);
+    camera.Position = glm::vec3(gridx/2, gridy/2, 250.0f);
     float lastTime {(float)glfwGetTime()};
 
     //Render loop
@@ -157,6 +159,7 @@ int main()
 
         glBindVertexArray(quadVAO);
         drawBalls(sim.particles);
+        drawBalls({sim.mouseObstacle.position},sim.mouseObstacle.radius);
 
         //draw lines for boundaries 
         lineShader.use();
@@ -192,9 +195,10 @@ void drawBalls(std::vector<Particle> particles){
     }
 }
 
-void drawBalls(std::vector<glm::vec2> positions){
+void drawBalls(std::vector<glm::vec2> positions, float radius){
     for(auto const &pos: positions){
         glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(pos,0.0f));
+        model = glm::scale(model,glm::vec3(radius));
         ballShader.setMat4("model",model);
         glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
     }
@@ -217,6 +221,7 @@ GLFWwindow* setupWindow(){
     if (window != NULL){
         glfwMakeContextCurrent(window);
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+        glfwSetCursorPosCallback(window, mouse_callback);
     }
     
     return window;
@@ -240,10 +245,17 @@ void processInput(GLFWwindow *window, float deltaTime)
         camera.ProcessKeys(BACK,deltaTime);
 }
 
+void mouse_callback(GLFWwindow* window, double xpos, double ypos){
+
+    float scale = 2.0f*camera.Position.z * std::tan(glm::radians(45.0f/2))/SCREEN_HEIGHT;
+    sim.mouseObstacle.position = {scale*(xpos-(SCREEN_WIDTH/2)) + camera.Position.x,scale*(-ypos +(SCREEN_HEIGHT/2)) + camera.Position.y};
+    std::cout << scale*(xpos-(SCREEN_WIDTH/2)) + camera.Position.x <<", "<< scale*(-ypos +(SCREEN_HEIGHT/2)) + camera.Position.y << std::endl;
+}
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
-        SCREEN_HEIGHT = height;
-        SCREEN_WIDTH = height * ASPECT_RATIO;
-        glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SCREEN_HEIGHT = height;
+    SCREEN_WIDTH = height * ASPECT_RATIO;
+    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 }
 
 unsigned int loadTexture(const std::string path){

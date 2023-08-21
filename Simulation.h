@@ -18,6 +18,8 @@ const int NUM_ITERS = 3; //number of iterations to repeat pushApart
 const float FLIP_PIC_RATIO = 0.9f;
 const float OVERRELAX = 1.9f;
 const float COMPRESSION_FACTOR = 2.0f;
+const float MOUSE_OBSTACLE_RADIUS = 15.0f;
+const float TIME_SCALE = 2.0f;
 
 
 struct Particle{
@@ -35,11 +37,19 @@ struct fluidCell{
     cellType type {AIR};
 };
 
+struct ballObstacle{
+    glm::vec2 position;
+    glm::vec2 velocity;
+    float radius;
+    glm::vec2 prevPos;
+};
+
 class Simulation {
 public:
     glm::ivec2 gridDimensions = GRID_DIMENSIONS;
     float gravity = GRAVITY;
     std::vector<Particle> particles;
+    ballObstacle mouseObstacle{{50.0f,50.0f},{0.0f,0.0f},MOUSE_OBSTACLE_RADIUS,{50.0f,50.0f}}; //mouse controls a ball where particles will be pushed away.
 
     Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0), 
                    fluidGrid(gridDimensions.x*gridDimensions.y)
@@ -65,9 +75,9 @@ public:
     }
     void simulate(float dt){
         //integrate(2*dt); 
-        integrate(2*dt);
+        integrate(TIME_SCALE*dt);
         pushApart();
-        handleObstacles();
+        handleObstacles(TIME_SCALE*dt);
         transferVelocities(true,FLIP_PIC_RATIO);
         computeDensities();
         makeIncompressible();
@@ -158,10 +168,22 @@ private:
     }
                 
     //push particles out of walls
-    void handleObstacles(){
+    void handleObstacles(float dt){
+        //update mouse obstacle velocity
+        mouseObstacle.velocity = (mouseObstacle.position- mouseObstacle.prevPos)/(TIME_SCALE*dt);
+        mouseObstacle.prevPos = mouseObstacle.position;
+
         float leftWall {spacing}, rightWall {spacing*gridDimensions.x-spacing}, lowerWall {spacing}, upperWall{spacing * gridDimensions.y-spacing};
         for(int i{};i<NUM_PARTICLES;i++){
             Particle &p = particles.at(i);
+            //mouse obstacle
+            float edgeDist2 {(mouseObstacle.radius+particleRadius)*(mouseObstacle.radius+particleRadius)};
+            float dist2 {glm::dot(p.position-mouseObstacle.position,p.position-mouseObstacle.position)};
+            if(dist2 < edgeDist2){
+                p.velocity += 0.3f * mouseObstacle.velocity;
+            }
+
+            //walls
             if(p.position.x < leftWall+particleRadius){
                 p.position.x = leftWall + particleRadius;
                 p.velocity.x = 0.0f;

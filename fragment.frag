@@ -4,6 +4,7 @@ out vec4 FragColor;
 
 //uniform sampler2D texture0;
 //uniform sampler2D texture1;
+uniform vec3 color;
 
 float circleSDF(vec2 pos){
     return length(pos)-0.5;
@@ -12,6 +13,6 @@ float circleSDF(vec2 pos){
 void main()
 {
     if(circleSDF(uv)>0) discard;
-    FragColor = vec4(0.0f,0.0f,1.0f,1.0f);
+    FragColor = vec4(color,1.0f);
 }
 

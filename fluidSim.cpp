@@ -23,7 +23,7 @@ void processInput(GLFWwindow *window, float deltaTime);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 unsigned int loadTexture(const std::string path);
 void drawBalls(std::vector<Particle> particles);
-void drawBalls(std::vector<glm::vec2> positions,float radius);
+void drawBalls(std::vector<glm::vec2> positions,float radius, glm::vec3 color);
 void drawLine(glm::vec2 p1 , glm::vec2 p2);
 
 // settings
@@ -159,7 +159,7 @@ int main()
 
         glBindVertexArray(quadVAO);
         drawBalls(sim.particles);
-        drawBalls({sim.mouseObstacle.position},sim.mouseObstacle.radius);
+        drawBalls({sim.mouseObstacle.position},sim.mouseObstacle.radius, sim.mouseObstacle.color);
 
         //draw lines for boundaries 
         lineShader.use();
@@ -191,15 +191,17 @@ void drawBalls(std::vector<Particle> particles){
     for(auto const &particle: particles){
         glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(particle.position,0.0f));
         ballShader.setMat4("model",model);
+        ballShader.setVec3("color", particle.color);
         glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
     }
 }
 
-void drawBalls(std::vector<glm::vec2> positions, float radius){
+void drawBalls(std::vector<glm::vec2> positions, float radius, glm::vec3 color){
     for(auto const &pos: positions){
-        glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(pos,0.0f));
-        model = glm::scale(model,glm::vec3(radius));
+        glm::mat4 model = glm::translate(glm::mat4(1.0f),glm::vec3(pos,0.1f));
+        model = glm::scale(model,glm::vec3(2*radius));
         ballShader.setMat4("model",model);
+        ballShader.setVec3("color", color);
         glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
     }
 }
@@ -247,9 +249,9 @@ void processInput(GLFWwindow *window, float deltaTime)
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos){
 
-    float scale = 2.0f*camera.Position.z * std::tan(glm::radians(45.0f/2))/SCREEN_HEIGHT;
+    float scale = 2.0f*camera.Position.z * std::tan(glm::radians(camera.fov/2))/SCREEN_HEIGHT;
     sim.mouseObstacle.position = {scale*(xpos-(SCREEN_WIDTH/2)) + camera.Position.x,scale*(-ypos +(SCREEN_HEIGHT/2)) + camera.Position.y};
-    std::cout << scale*(xpos-(SCREEN_WIDTH/2)) + camera.Position.x <<", "<< scale*(-ypos +(SCREEN_HEIGHT/2)) + camera.Position.y << std::endl;
+    //std::cout << scale*(xpos-(SCREEN_WIDTH/2)) + camera.Position.x <<", "<< scale*(-ypos +(SCREEN_HEIGHT/2)) + camera.Position.y << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){

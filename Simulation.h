@@ -13,18 +13,19 @@
 const unsigned int NUM_PARTICLES = 5000;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(200,80);
 const float SPACING = 1.1f;
-const int GRAVITY = -9.81f;
+const float GRAVITY = -9.81f;
 const int NUM_ITERS = 3; //number of iterations to repeat pushApart
-const float FLIP_PIC_RATIO = 0.9f;
+const float FLIP_PIC_RATIO = 0.3f;
 const float OVERRELAX = 1.9f;
 const float COMPRESSION_FACTOR = 2.0f;
-const float MOUSE_OBSTACLE_RADIUS = 15.0f;
+const float MOUSE_OBSTACLE_RADIUS = 7.0f;
 const float TIME_SCALE = 2.0f;
 
 
 struct Particle{
     glm::vec2 position;
     glm::vec2 velocity;
+    glm::vec3 color = {0.0f,0.2f,0.9f};
 };
 
 enum cellType {WATER, AIR, SOLID};
@@ -42,6 +43,7 @@ struct ballObstacle{
     glm::vec2 velocity;
     float radius;
     glm::vec2 prevPos;
+    glm::vec3 color;
 };
 
 class Simulation {
@@ -49,7 +51,7 @@ public:
     glm::ivec2 gridDimensions = GRID_DIMENSIONS;
     float gravity = GRAVITY;
     std::vector<Particle> particles;
-    ballObstacle mouseObstacle{{50.0f,50.0f},{0.0f,0.0f},MOUSE_OBSTACLE_RADIUS,{50.0f,50.0f}}; //mouse controls a ball where particles will be pushed away.
+    ballObstacle mouseObstacle{{50.0f,70.0f},{0.0f,0.0f},MOUSE_OBSTACLE_RADIUS,{50.0f,70.0f}, {1.0f,1.0f,0.0f}}; //mouse controls a ball where particles will be pushed away.
 
     Simulation() : particles(NUM_PARTICLES), grid(gridDimensions.x*gridDimensions.y + 1,0), particleIDs(NUM_PARTICLES,0), 
                    fluidGrid(gridDimensions.x*gridDimensions.y)
@@ -180,7 +182,8 @@ private:
             float edgeDist2 {(mouseObstacle.radius+particleRadius)*(mouseObstacle.radius+particleRadius)};
             float dist2 {glm::dot(p.position-mouseObstacle.position,p.position-mouseObstacle.position)};
             if(dist2 < edgeDist2){
-                p.velocity += 0.3f * mouseObstacle.velocity;
+                p.velocity += 0.6f * mouseObstacle.velocity;
+                p.color = {1.0f,0.0f,0.0f};
             }
 
             //walls

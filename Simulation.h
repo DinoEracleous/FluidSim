@@ -10,22 +10,23 @@
 #include <iostream>
 #include <algorithm>
 
-const unsigned int NUM_PARTICLES = 5000;
+const unsigned int NUM_PARTICLES = 7000;
 const glm::vec2 GRID_DIMENSIONS = glm::vec2(200,80);
 const float SPACING = 1.1f;
 const float GRAVITY = -9.81f;
-const int NUM_ITERS = 3; //number of iterations to repeat pushApart
-const float FLIP_PIC_RATIO = 0.3f;
+const int NUM_ITERS = 2; //number of iterations to repeat pushApart
+const float FLIP_PIC_RATIO = 0.7f;
 const float OVERRELAX = 1.9f;
-const float COMPRESSION_FACTOR = 2.0f;
+const float COMPRESSION_FACTOR = 5.0f;
 const float MOUSE_OBSTACLE_RADIUS = 7.0f;
-const float TIME_SCALE = 2.0f;
+const float TIME_SCALE = 1.5f;
+const glm::vec3 WATER_COLOR = {0.0f,0.2f,0.9f};
 
 
 struct Particle{
     glm::vec2 position;
     glm::vec2 velocity;
-    glm::vec3 color = {0.0f,0.2f,0.9f};
+    glm::vec3 color = WATER_COLOR;
 };
 
 enum cellType {WATER, AIR, SOLID};
@@ -84,6 +85,7 @@ public:
         computeDensities();
         makeIncompressible();
         transferVelocities(false,FLIP_PIC_RATIO);
+        colorParticles();
     }
 
 private:
@@ -183,7 +185,7 @@ private:
             float dist2 {glm::dot(p.position-mouseObstacle.position,p.position-mouseObstacle.position)};
             if(dist2 < edgeDist2){
                 p.velocity += 0.6f * mouseObstacle.velocity;
-                p.color = {1.0f,0.0f,0.0f};
+                //p.color = {1.0f,0.0f,0.0f}; //debug change color on mouseObstacle collision
             }
 
             //walls
@@ -363,6 +365,20 @@ private:
         }
 
 
+    }
+
+    void colorParticles(){
+        for(int i{};i<NUM_PARTICLES;i++){
+            int gridIndex = gridCoordIndex(getGridCoords(particles.at(i).position));
+            if(restDensity>0){
+                float speedSquared {glm::dot(particles.at(i).velocity,particles.at(i).velocity)};
+                if(speedSquared>20.0f && (fluidGrid.at(gridIndex).density/restDensity)<0.7){
+                    particles.at(i).color = {0.8f,0.8f,1.0f};
+                } else if (speedSquared <30.0f){
+                    particles.at(i).color += 0.1f*(glm::mix(WATER_COLOR,particles.at(i).color,speedSquared/30.0f)-particles.at(i).color);
+                }
+            }
+        }
     }
 
 };

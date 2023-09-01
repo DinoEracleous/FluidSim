@@ -29,7 +29,7 @@ void drawLine(glm::vec2 p1 , glm::vec2 p2);
 // settings
 unsigned int SCREEN_WIDTH = 1200;
 unsigned int SCREEN_HEIGHT = 900;
-float ASPECT_RATIO = 12.0f/9;
+float ASPECT_RATIO = 12.0f/9.0f;
 
 unsigned int textureCount {0};
 
@@ -122,13 +122,6 @@ int main()
     glm::mat4 model = glm::mat4(1.0f); 
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
-    
-    projection = glm::perspective(glm::radians(camera.fov), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, camera.near, camera.far);
-    ballShader.setMat4("projection", projection);
-
-    //LINES
-    lineShader.use();
-    lineShader.setMat4("projection", projection);
 
     //===========Simulation==============
     float gridSpacing = SPACING;
@@ -151,7 +144,10 @@ int main()
         glClearColor(0.15f, 0.15f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
         ballShader.use();
+        projection = glm::perspective(glm::radians(camera.fov), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, camera.near, camera.far);
+        ballShader.setMat4("projection", projection);
         view = camera.GetViewMatrix();
         ballShader.setMat4("view",view);
         
@@ -163,6 +159,7 @@ int main()
 
         //draw lines for boundaries 
         lineShader.use();
+        lineShader.setMat4("projection", projection);
         lineShader.setMat4("view",view);
         glBindVertexArray(lineVAO);
         drawLine({gridSpacing,gridSpacing},{gridx*gridSpacing-gridSpacing,gridSpacing}); //floor
@@ -255,9 +252,12 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos){
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
+    // SCREEN_HEIGHT = height;
+    // SCREEN_WIDTH = height * ASPECT_RATIO;
+    // glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    glViewport(0,0,width,height);
     SCREEN_HEIGHT = height;
-    SCREEN_WIDTH = height * ASPECT_RATIO;
-    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SCREEN_WIDTH = width;
 }
 
 unsigned int loadTexture(const std::string path){
